@@ -1,0 +1,54 @@
+{
+  "km_by_class": {
+    "dedicated": 13198.3,
+    "route_local": 10005.1,
+    "route_national": 17685.7,
+    "route_urban": 612.2,
+    "trail": 3071.4
+  },
+  "km_by_source": {
+    "Kartverket Turrutebasen": 10005.1,
+    "NVDB": 30117.4,
+    "OpenStreetMap": 4450.2
+  },
+  "km_by_kind": {
+    "Cycle path": 1378.9,
+    "Cycle route": 10005.1,
+    "Gang- og sykkelveg": 11574.8,
+    "Main urban cycle network": 612.2,
+    "National cycle route": 17685.7,
+    "Shared path or track, cycling allowed": 3071.4,
+    "Sykkelveg": 244.6
+  },
+  "nvdb_km_by_fylke": {
+    "Agder": 817.2,
+    "Akershus": 1592.1,
+    "Buskerud": 666.6,
+    "Finnmark": 178.7,
+    "Innlandet": 1251.1,
+    "Møre og Romsdal": 713.5,
+    "Nordland": 433.8,
+    "Oslo": 361.6,
+    "Rogaland": 1583.3,
+    "Telemark": 446.2,
+    "Troms": 277.8,
+    "Trøndelag": 1058.2,
+    "Vestfold": 618.8,
+    "Vestland": 1219.0,
+    "Østfold": 601.7
+  },
+  "lines_by_class": {
+    "dedicated": 175079,
+    "route_local": 11871,
+    "route_national": 1787,
+    "route_urban": 1578,
+    "trail": 19111
+  },
+  "bbox": [
+    4.797524,
+    57.983382,
+    31.157206,
+    78.65561
+  ],
+  "osm_overlaps_removed": 65048
+}

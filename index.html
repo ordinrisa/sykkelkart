@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sykkelkart</title>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.6.0/dist/maplibre-gl.css">
+<style>
+  :root {
+    --panel: rgba(16, 20, 24, .88);
+    --line: rgba(255, 255, 255, .13);
+    --text: #f3f5f6;
+    --muted: #a7b0b6;
+    --accent: #ff2bd6;
+    --active: #ffffff;
+    --on-active: #111417;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; background: #101418; color: var(--text);
+    font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  #map { position: absolute; inset: 0; }
+
+  .panel { position: absolute; top: 16px; left: 16px; width: 300px; max-height: calc(100% - 32px);
+    display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 14px; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    box-shadow: 0 10px 34px rgba(0, 0, 0, .38); z-index: 2; }
+  .head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 10px; }
+  h1 { margin: 0; font-size: 17px; font-weight: 700; letter-spacing: -.01em; }
+  .collapse { display: none; background: none; border: 0; color: var(--text); font-size: 20px; line-height: 1;
+    min-width: 40px; min-height: 40px; cursor: pointer; }
+  .body { overflow-y: auto; padding: 0 16px 14px; }
+
+  .search { position: relative; margin-bottom: 12px; }
+  .search input { width: 100%; height: 40px; padding: 0 12px; color: var(--text); font-size: 15px;
+    background: rgba(255, 255, 255, .09); border: 1px solid var(--line); border-radius: 9px; outline: none; }
+  .search input::placeholder { color: var(--muted); }
+  .search input:focus { border-color: var(--text); }
+  #results { position: absolute; top: 44px; left: 0; right: 0; margin: 0; padding: 4px; list-style: none;
+    background: #1b2126; border: 1px solid var(--line); border-radius: 9px; z-index: 3; }
+  #results:empty { display: none; }
+  #results button { width: 100%; padding: 8px; text-align: left; background: none; border: 0; border-radius: 6px;
+    color: var(--text); font: inherit; cursor: pointer; }
+  #results button:hover, #results button:focus { background: rgba(255, 255, 255, .1); outline: none; }
+  #results small { display: block; color: var(--muted); }
+
+  .views { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; padding: 4px; margin-bottom: 14px;
+    background: rgba(255, 255, 255, .08); border-radius: 10px; }
+  .views button { height: 34px; background: none; border: 0; border-radius: 7px; color: var(--text);
+    font: 600 13px/1 inherit; font-family: inherit; cursor: pointer; }
+  .views button[aria-pressed="true"] { background: var(--active); color: var(--on-active); }
+
+  .label { margin: 0 0 6px; color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; }
+  .layer { display: grid; grid-template-columns: 20px 26px 1fr auto; align-items: center; gap: 8px; min-height: 36px; cursor: pointer; }
+  .layer input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
+  .layer .km { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 13px; }
+  .swatch { display: block; height: 0; border-top: 4px solid; border-radius: 2px; }
+  .swatch.dash { border-top-style: dashed; border-top-width: 3px; border-radius: 0; }
+  .note { margin: 6px 0 12px; color: var(--muted); font-size: 12px; }
+  .inview { display: flex; justify-content: space-between; padding-top: 10px; border-top: 1px solid var(--line); font-size: 13px; }
+  .inview b { font-variant-numeric: tabular-nums; }
+
+  .maplibregl-popup-content { padding: 12px 14px; background: #171c20; color: var(--text); border-radius: 10px;
+    font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; box-shadow: 0 8px 24px rgba(0,0,0,.4); }
+  .maplibregl-popup-close-button { color: var(--text); font-size: 18px; padding: 0 7px; }
+  .maplibregl-popup-tip { border-top-color: #171c20 !important; border-bottom-color: #171c20 !important; }
+  .pop-title { margin: 0 12px 6px 0; font-size: 14px; font-weight: 700; }
+  .pop dl { display: grid; grid-template-columns: auto 1fr; gap: 1px 10px; margin: 0; }
+  .pop dt { color: var(--muted); }
+  .pop dd { margin: 0; }
+
+  @media (max-width: 640px) {
+    .panel { top: auto; left: 0; right: 0; bottom: 0; width: 100%; max-height: 72%;
+      border-radius: 14px 14px 0 0; border-width: 1px 0 0; padding-bottom: env(safe-area-inset-bottom); }
+    .collapse { display: block; }
+    .head { padding: 6px 8px 6px 16px; }
+    .panel.closed .body { display: none; }
+    #results { top: auto; bottom: 44px; }
+    .maplibregl-ctrl-bottom-right, .maplibregl-ctrl-bottom-left { display: none; }
+  }
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<section class="panel" id="panel" aria-label="Map controls">
+  <div class="head">
+    <h1>Sykkelkart</h1>
+    <button class="collapse" id="collapse" aria-label="Hide or show controls" aria-expanded="true">⌄</button>
+  </div>
+  <div class="body">
+    <div class="search">
+      <input id="search" type="search" placeholder="Search for a place" aria-label="Search for a place" autocomplete="off">
+      <ul id="results"></ul>
+    </div>
+    <div class="views" role="group" aria-label="Map view">
+      <button data-base="topo" aria-pressed="true">Normal</button>
+      <button data-base="satellite" aria-pressed="false">Satellite</button>
+      <button id="toggle3d" aria-pressed="false">3D</button>
+    </div>
+    <p class="label">Away from cars</p>
+    <div id="layers-main"></div>
+    <p class="label" style="margin-top:10px">Signed routes</p>
+    <p class="note">These can follow car roads for long stretches.</p>
+    <div id="layers-routes"></div>
+    <div class="inview"><span>Showing in this view</span><b id="inview">–</b></div>
+  </div>
+</section>
+
+<script src="https://unpkg.com/maplibre-gl@5.6.0/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/pmtiles@4.3.0/dist/pmtiles.js"></script>
+<script>
+const CLASSES = [
+  { id: 'dedicated', label: 'Cycle paths', color: '#ff2bd6', group: 'main', on: true },
+  { id: 'trail', label: 'Shared paths and trails', color: '#ffb000', group: 'main', on: false, dash: [1.4, 1.4] },
+  { id: 'route_national', label: 'National routes', color: '#00e5ff', group: 'routes', on: false, dash: [2.4, 1.6] },
+  { id: 'route_urban', label: 'City networks', color: '#7cff4d', group: 'routes', on: false, dash: [2.4, 1.6] },
+  { id: 'route_local', label: 'Local routes', color: '#ffffff', group: 'routes', on: false, dash: [2.4, 1.6] },
+];
+const STORE_KEY = 'sykkelkart-settings';
+const settings = readSettings();
+
+function readSettings() {
+  const fallback = { base: 'topo', terrain: false, layers: Object.fromEntries(CLASSES.map(c => [c.id, c.on])) };
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORE_KEY));
+    return saved ? { ...fallback, ...saved, layers: { ...fallback.layers, ...saved.layers } } : fallback;
+  } catch { return fallback; }
+}
+function saveSettings() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(settings)); } catch { /* the page works without storage */ }
+}
+
+const protocol = new pmtiles.Protocol();
+maplibregl.addProtocol('pmtiles', protocol.tile);
+
+const map = new maplibregl.Map({
+  container: 'map',
+  hash: true,
+  center: [10.75, 63.5],
+  zoom: 4.3,
+  maxPitch: 80,
+  style: {
+    version: 8,
+    sources: {
+      topo: {
+        type: 'raster', tileSize: 256, maxzoom: 18,
+        tiles: ['https://cache.kartverket.no/v1/wmts/1.0.0/topo/default/webmercator/{z}/{y}/{x}.png'],
+        attribution: '<a href="https://www.kartverket.no/">Kartverket</a>',
+      },
+      satellite: {
+        type: 'raster', tileSize: 256, maxzoom: 19,
+        tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+        attribution: 'Imagery © Esri, Maxar, Earthstar Geographics',
+      },
+      dem: {
+        type: 'raster-dem', encoding: 'terrarium', tileSize: 256, maxzoom: 15,
+        tiles: ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'],
+        attribution: 'Terrain: Mapzen, AWS Open Data',
+      },
+      paths: {
+        type: 'vector', url: 'pmtiles://' + new URL('data/sykkel.pmtiles', location.href).href,
+        attribution: 'Paths: <a href="https://www.vegvesen.no/">Statens vegvesen NVDB</a> (NLOD), Kartverket, © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors (ODbL)',
+      },
+    },
+    layers: [
+      { id: 'background', type: 'background', paint: { 'background-color': '#dfe6e8' } },
+      { id: 'base-topo', type: 'raster', source: 'topo' },
+      { id: 'base-satellite', type: 'raster', source: 'satellite', layout: { visibility: 'none' } },
+    ],
+  },
+});
+map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
+map.addControl(new maplibregl.GeolocateControl({
+  positionOptions: { enableHighAccuracy: true },
+  trackUserLocation: true,
+}), 'top-right');
+map.addControl(new maplibregl.ScaleControl(), 'bottom-right');
+
+const width = (min, max) => ['interpolate', ['linear'], ['zoom'], 5, min, 12, min + (max - min) * .35, 16, max, 18, max * 1.5];
+
+let ready = false;
+map.on('style.load', () => {
+  // Draw routes first so dedicated paths stay on top.
+  [...CLASSES].reverse().forEach(c => {
+    const filter = ['==', ['get', 'class'], c.id];
+    const casing = { 'line-cap': 'round', 'line-join': 'round', visibility: 'none' };
+    map.addLayer({
+      id: 'casing-' + c.id, type: 'line', source: 'paths', 'source-layer': 'paths', filter,
+      layout: casing,
+      paint: { 'line-color': '#14181c', 'line-opacity': .75, 'line-width': width(1, 4.6) },
+    });
+    map.addLayer({
+      id: 'line-' + c.id, type: 'line', source: 'paths', 'source-layer': 'paths', filter,
+      layout: c.dash ? { 'line-cap': 'butt', 'line-join': 'round', visibility: 'none' } : casing,
+      paint: { 'line-color': c.color, 'line-width': width(.5, 2.8), ...(c.dash ? { 'line-dasharray': c.dash } : {}) },
+    });
+    map.on('mouseenter', 'line-' + c.id, () => { map.getCanvas().style.cursor = 'pointer'; });
+    map.on('mouseleave', 'line-' + c.id, () => { map.getCanvas().style.cursor = ''; });
+  });
+  ready = true;
+  applyLayers();
+  applyBase();
+  if (settings.terrain) applyTerrain(false);
+  updateInView();
+});
+
+function applyLayers() {
+  if (!ready) return;
+  CLASSES.forEach(c => {
+    const visibility = settings.layers[c.id] ? 'visible' : 'none';
+    map.setLayoutProperty('line-' + c.id, 'visibility', visibility);
+    map.setLayoutProperty('casing-' + c.id, 'visibility', visibility);
+  });
+}
+function applyBase() {
+  if (ready) {
+    map.setLayoutProperty('base-topo', 'visibility', settings.base === 'topo' ? 'visible' : 'none');
+    map.setLayoutProperty('base-satellite', 'visibility', settings.base === 'satellite' ? 'visible' : 'none');
+  }
+  document.querySelectorAll('[data-base]').forEach(b => b.setAttribute('aria-pressed', b.dataset.base === settings.base));
+}
+function applyTerrain(animate) {
+  document.getElementById('toggle3d').setAttribute('aria-pressed', settings.terrain);
+  if (!ready) return;
+  if (settings.terrain) {
+    map.setTerrain({ source: 'dem', exaggeration: 1.4 });
+    map.setSky({ 'sky-color': '#79b3e0', 'horizon-color': '#dcecf5', 'fog-color': '#eef3f6',
+      'sky-horizon-blend': .6, 'horizon-fog-blend': .6, 'fog-ground-blend': .85, 'atmosphere-blend': .7 });
+    if (animate) map.easeTo({ pitch: 62, duration: 900 });
+  } else {
+    map.setTerrain(null);
+    if (animate) map.easeTo({ pitch: 0, bearing: 0, duration: 700 });
+  }
+}
+
+document.querySelectorAll('[data-base]').forEach(button => button.addEventListener('click', () => {
+  settings.base = button.dataset.base;
+  saveSettings();
+  applyBase();
+}));
+document.getElementById('toggle3d').addEventListener('click', () => {
+  settings.terrain = !settings.terrain;
+  saveSettings();
+  applyTerrain(true);
+});
+
+// Layer list
+fetch('data/report.json').then(r => r.json()).catch(() => null).then(report => {
+  CLASSES.forEach(c => {
+    const row = document.createElement('label');
+    row.className = 'layer';
+    const km = report?.km_by_class?.[c.id];
+    row.innerHTML = `<input type="checkbox" ${settings.layers[c.id] ? 'checked' : ''}>
+      <span class="swatch ${c.dash ? 'dash' : ''}" style="border-top-color:${c.color}"></span>
+      <span>${c.label}</span><span class="km">${km != null ? formatKm(km) : ''}</span>`;
+    row.querySelector('input').addEventListener('change', event => {
+      settings.layers[c.id] = event.target.checked;
+      saveSettings();
+      applyLayers();
+      updateInView();
+    });
+    document.getElementById('layers-' + c.group).append(row);
+  });
+});
+
+function formatKm(km) {
+  return Math.round(km).toLocaleString('nb-NO') + ' km';
+}
+
+// Kilometres on screen: only meaningful once zoomed in enough that lines are not dropped.
+const MIN_COUNT_ZOOM = 10;
+function updateInView() {
+  if (!ready) return;
+  const output = document.getElementById('inview');
+  if (map.getZoom() < MIN_COUNT_ZOOM) { output.textContent = 'Zoom in to count'; return; }
+  const layers = CLASSES.filter(c => settings.layers[c.id]).map(c => 'line-' + c.id);
+  if (!layers.length) { output.textContent = '0 km'; return; }
+  const lengths = new Map();
+  map.queryRenderedFeatures({ layers }).forEach(f => lengths.set(f.id, f.properties.length_m));
+  let meters = 0;
+  lengths.forEach(value => { meters += value; });
+  output.textContent = (meters < 10000 ? (meters / 1000).toFixed(1).replace('.', ',') : Math.round(meters / 1000)) + ' km';
+}
+map.on('moveend', updateInView);
+map.on('idle', updateInView);
+
+// Path details. A wide hit box makes thin lines easy to tap.
+map.on('click', event => {
+  if (!ready) return;
+  const layers = CLASSES.filter(c => settings.layers[c.id]).map(c => 'line-' + c.id);
+  if (!layers.length) return;
+  const { x, y } = event.point;
+  const found = map.queryRenderedFeatures([[x - 8, y - 8], [x + 8, y + 8]], { layers });
+  if (!found.length) return;
+  const p = found[0].properties;
+  const root = document.createElement('div');
+  root.className = 'pop';
+  const title = document.createElement('p');
+  title.className = 'pop-title';
+  title.textContent = p.name || p.kind;
+  const list = document.createElement('dl');
+  const rows = [['Type', p.kind], ['Surface', p.surface || 'Not recorded'],
+    ['Segment', p.length_m >= 1000 ? (p.length_m / 1000).toFixed(1).replace('.', ',') + ' km' : p.length_m + ' m'],
+    ['Source', p.source]];
+  rows.forEach(([key, value]) => {
+    const dt = document.createElement('dt');
+    dt.textContent = key;
+    const dd = document.createElement('dd');
+    dd.textContent = value;
+    list.append(dt, dd);
+  });
+  root.append(title, list);
+  new maplibregl.Popup({ maxWidth: '280px' }).setLngLat(event.lngLat).setDOMContent(root).addTo(map);
+});
+
+// Place search (Kartverket stedsnavn)
+const searchInput = document.getElementById('search');
+const results = document.getElementById('results');
+let searchTimer, searchController;
+searchInput.addEventListener('input', () => {
+  clearTimeout(searchTimer);
+  const query = searchInput.value.trim();
+  if (query.length < 2) { results.replaceChildren(); return; }
+  searchTimer = setTimeout(() => runSearch(query), 250);
+});
+searchInput.addEventListener('keydown', event => {
+  if (event.key === 'Escape') results.replaceChildren();
+  if (event.key === 'Enter') results.querySelector('button')?.click();
+});
+async function runSearch(query) {
+  searchController?.abort();
+  searchController = new AbortController();
+  const params = new URLSearchParams({ sok: query + '*', fuzzy: 'true', treffPerSide: 6, utkoordsys: 4326 });
+  try {
+    const response = await fetch('https://ws.geonorge.no/stedsnavn/v1/navn?' + params, { signal: searchController.signal });
+    const data = await response.json();
+    results.replaceChildren(...(data.navn || []).map(place => {
+      const item = document.createElement('li');
+      const button = document.createElement('button');
+      const municipality = place.kommuner?.[0]?.kommunenavn;
+      button.textContent = place.skrivemåte;
+      const detail = document.createElement('small');
+      detail.textContent = [place.navneobjekttype, municipality].filter(Boolean).join(', ');
+      button.append(detail);
+      button.addEventListener('click', () => {
+        const point = place.representasjonspunkt;
+        map.flyTo({ center: [point.øst, point.nord], zoom: 13, essential: true });
+        searchInput.value = place.skrivemåte;
+        results.replaceChildren();
+      });
+      item.append(button);
+      return item;
+    }));
+  } catch (error) {
+    if (error.name !== 'AbortError') {
+      const item = document.createElement('li');
+      item.style.padding = '8px';
+      item.textContent = 'Search is not available right now.';
+      results.replaceChildren(item);
+    }
+  }
+}
+
+// Bottom sheet on phones
+const panel = document.getElementById('panel');
+const collapse = document.getElementById('collapse');
+function setPanelClosed(closed) {
+  panel.classList.toggle('closed', closed);
+  collapse.textContent = closed ? '⌃' : '⌄';
+  collapse.setAttribute('aria-expanded', !closed);
+}
+collapse.addEventListener('click', () => setPanelClosed(!panel.classList.contains('closed')));
+setPanelClosed(matchMedia('(max-width: 640px)').matches);
+</script>
+</body>
+</html>
